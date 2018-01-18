@@ -10,6 +10,8 @@ public class Main {
 	private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 	
 	public static void main(String[] args) throws ParseException {
+		
+		
 //		
 //		String startDate = args[0];
 //		String duration = args[1];
