@@ -1,15 +1,21 @@
 package com.ef.parser;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.List;
 import java.util.stream.Stream;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import com.ef.dao.LogDao;
+import com.ef.domain.LogEntity;
+
+@Component
 public class Parser {
 	
 	/**
@@ -27,9 +33,68 @@ public class Parser {
 	private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 	
 	
-	public void read(String filePath, Date initialDate, String duration, int threshold) {
+	@Autowired
+	private LogDao dao;
+	
+	
+	public void parseFile(String filePath)  {
 		
 		try (Stream<String> lines = Files.lines(Paths.get(filePath))) {
+				lines.map(line -> line.split("\\|")).map(line -> {
+					try {
+						LogEntity logEntity = new LogEntity();
+						logEntity.setDate(DATE_FORMAT.parse(line[0]));
+						logEntity.setIp(line[1]);
+						logEntity.setRequest(line[2]);
+						logEntity.setStatus(Integer.valueOf(line[3]));
+						logEntity.setAgent(line[4]);
+						return logEntity;
+					} catch (Exception e) {
+						System.out.println("Exception occurred while parsing the file: "+e.getMessage());
+					}
+					return null;
+				}).filter(value -> value != null).forEach(logEntity -> {
+					dao.insert(logEntity);
+				});
+		} catch (IOException e1) {
+			System.out.println("Error occurred while reading the file: "+e1.getMessage());
+		}
+		
+	}
+	
+	public List<String> getIpsManyRequests(Date initial, String duration, int threshold) {
+		
+		String initialDate = DATE_FORMAT.format(initial);
+		Date endDate = this.calculateFinalDate(initial, duration);
+		String finalDate =  DATE_FORMAT.format(endDate);
+		
+		return dao.queryIpsThatExceedThreshold(initialDate, finalDate, threshold);
+	}
+	
+	private Date calculateFinalDate(Date initial, String duration) {
+		Calendar cal = Calendar.getInstance();
+		cal.setTime(initial);
+		if (duration.equals("daily")) {
+			cal.add(Calendar.HOUR_OF_DAY, 24);
+			return cal.getTime();
+		} else if (duration.equals("hourly")) {
+			cal.add(Calendar.HOUR_OF_DAY, 1);
+			return cal.getTime();
+		}
+		throw new RuntimeException("Not supported");
+	}
+	
+	 public RuntimeException runtime(Throwable e) {
+	        if (e instanceof RuntimeException) {
+	            return (RuntimeException)e;
+	        }
+
+	        return new RuntimeException(e);
+	    }
+	 
+	 
+	 /**
+	  * try (Stream<String> lines = Files.lines(Paths.get(filePath))) {
 			Map<String, Long> ipRequestCount = lines.map(line -> line.split("\\|")).filter(line -> {
 				try {
 					Date dateFromFile = DATE_FORMAT.parse(line[0]);
@@ -55,28 +120,15 @@ public class Parser {
 			System.out.println("Error occurred while parsing the file");
 		}
 		
+		LogEntity logEntity = new LogEntity();
+		logEntity.setAgent("Chrome");
+		logEntity.setIp("192.168.0.1");
+		logEntity.setDate(new Date());
+		logEntity.setMethod("GET");
+		logEntity.setResponseCode(200);
+		logEntity.setProtocol("HTTP");
 		
-	}
-	
-	public Date calculateFinalDate(Date initial, String duration) {
-		Calendar cal = Calendar.getInstance();
-		cal.setTime(initial);
-		if (duration.equals("daily")) {
-			cal.add(Calendar.HOUR_OF_DAY, 24);
-			return cal.getTime();
-		} else if (duration.equals("hourly")) {
-			cal.add(Calendar.HOUR_OF_DAY, 1);
-			return cal.getTime();
-		}
-		throw new RuntimeException("Not supported");
-	}
-	
-	 public RuntimeException runtime(Throwable e) {
-	        if (e instanceof RuntimeException) {
-	            return (RuntimeException)e;
-	        }
-
-	        return new RuntimeException(e);
-	    }
+		dao.insert(logEntity);
+	  */
 
 }
